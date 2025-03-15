@@ -1,0 +1,178 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              03/09/2025 18:52:23 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE INCDIR(..\Driver;..\..\11届真题) DEBUG O
+                    -BJECTEXTEND PRINT(.\Listings\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include<STC15F2K60S2.H>
+   2          #include<key.H>
+   3          #include<seg.H>
+   4          #include<iic.H>
+   5          #include<led.H>
+   6          #include<intrins.H>
+   7          
+   8          unsigned int time_slow_all;
+   9          unsigned char key_val,key_down,key_old;
+  10          unsigned char seg_pos;
+  11          unsigned char seg_buf[8]={13,13,13,13,13,13,13,13};
+  12          unsigned char point_buf[8]={0,0,0,0,0,0,0,0}; 
+  13          unsigned char led_buf[8]={0,0,0,0,0,0,0,0}; 
+  14          float vol;
+  15          float vol_disp=3.0;//电压参数
+  16          unsigned char vol_save;//电压保存值
+  17          unsigned char seg_show_mode;
+  18          unsigned char count;//计数
+  19          bit flag;//函数下降标志位
+  20          unsigned int time_5s;
+  21          bit flag_5s;
+  22          bit light;
+  23          unsigned char error;
+  24          
+  25          void error_proc(){
+  26   1        unsigned char i;
+  27   1        for(i=5;i<17;i++){
+  28   2        if(key_down==i) error++;
+  29   2        }
+  30   1        if(key_down==1) error=0;
+  31   1        if(error==0) led_buf[2]=0;
+  32   1        if(error>=3) led_buf[2]=1;
+  33   1      }
+  34          
+  35          void key_proc(){
+  36   1        if(time_slow_all%10) return;
+  37   1        key_val=key_read();
+  38   1        key_down=key_val&(key_val^key_old);
+  39   1        key_old=key_val;
+  40   1        switch(key_down){
+  41   2            case 1://S12作用，切换
+  42   2            if(++seg_show_mode==3)seg_show_mode=0;
+  43   2            if(seg_show_mode==2){
+  44   3            vol_save=(unsigned char)(vol_disp*10.0);
+  45   3            EEPROM_Write(&vol_save,0,1);}
+  46   2                break;
+  47   2            case 2://S13作用，尽在计数界面清零
+  48   2            if(seg_show_mode==2){error=0;count=0;}
+  49   2            else error++;
+  50   2            break;
+  51   2          case 4://减函数--S17
+  52   2            if(seg_show_mode==1){
+  53   3              error=0;
+  54   3          vol_disp-=0.5;
+C51 COMPILER V9.56.0.0   MAIN                                                              03/09/2025 18:52:23 PAGE 2   
+
+  55   3          if(vol_disp==(0-0.5)) vol_disp=5;}
+  56   2            else error++;
+  57   2            break;
+  58   2          case 3://加函数--S16
+  59   2            if(seg_show_mode==1){
+  60   3              error=0;
+  61   3          vol_disp+=0.5;
+  62   3          if(vol_disp==5.5) vol_disp=0;}
+  63   2          else  error++;  
+  64   2            break;
+  65   2          }
+  66   1        error_proc();
+  67   1      }
+  68          
+  69          void seg_proc(){
+  70   1        if(time_slow_all%50) return;
+  71   1      
+  72   1        switch(seg_show_mode){
+  73   2          case 0://数据界面
+  74   2            seg_buf[0]=10;
+  75   2            seg_buf[5]=(unsigned int)(vol*100)/100%10;
+  76   2            seg_buf[6]=(unsigned int)(vol*100)/10%10;
+  77   2            seg_buf[7]=(unsigned int)(vol*100)%10;
+  78   2            point_buf[5]=1;
+  79   2            break;
+  80   2            case 1://参数界面
+  81   2            seg_buf[0]=11;
+  82   2            seg_buf[5]=(unsigned int)(vol_disp*100)/100%10;
+  83   2            seg_buf[6]=(unsigned int)(vol_disp*100)/10%10;
+  84   2            seg_buf[7]=(unsigned int)(vol_disp*100)%10;
+  85   2            point_buf[5]=1;
+  86   2            break;
+  87   2            case 2://计数界面
+  88   2            seg_buf[0]=12;
+  89   2            point_buf[5]=0;
+  90   2            seg_buf[5]=(count>99)?count/100%10:13;
+  91   2            seg_buf[6]=(count>9)?count/10%10:13;
+  92   2            seg_buf[7]=count%10;
+  93   2            break;
+  94   2        
+  95   2        }
+  96   1      
+  97   1      
+  98   1      }
+  99          void led_proc(){
+ 100   1        if(time_slow_all%50==0) vol=Ad_Read(0x43)/51.0;
+ 101   1        if(vol>vol_disp) flag=1;
+ 102   1        if(flag)if(vol<vol_disp){count++;flag=0;}
+ 103   1        flag_5s=(vol<vol_disp)?1:0;
+ 104   1        led_buf[1]=(count%2==0)?0:1;
+ 105   1      }
+ 106          void Timer1_Init(void)    //1毫秒@12.000MHz
+ 107          {
+ 108   1        AUXR &= 0xBF;     //定时器时钟12T模式
+ 109   1        TMOD &= 0x0F;     //设置定时器模式
+ 110   1        TL1 = 0x18;       //设置定时初始值
+ 111   1        TH1 = 0xFC;       //设置定时初始值
+ 112   1        TF1 = 0;        //清除TF1标志
+ 113   1        TR1 = 1;        //定时器1开始计时
+ 114   1        EA=1;
+ 115   1        ET1=1;
+ 116   1      }
+C51 COMPILER V9.56.0.0   MAIN                                                              03/09/2025 18:52:23 PAGE 3   
+
+ 117          void tiemr()interrupt 3{
+ 118   1        if(++time_slow_all==1000) time_slow_all=0;
+ 119   1        if(++seg_pos==8) seg_pos=0;
+ 120   1        seg_disp(seg_pos,seg_buf[seg_pos],point_buf[seg_pos]);
+ 121   1        led_disp(seg_pos,led_buf[seg_pos]);
+ 122   1        if(flag_5s){
+ 123   2          if(++time_5s==5000){
+ 124   3            time_5s=0;
+ 125   3            led_buf[0]=1;
+ 126   3          }
+ 127   2        }
+ 128   1        else {time_5s=0;led_buf[0]=0;}
+ 129   1      }
+ 130          void init(){
+ 131   1            P0=0XFF;
+ 132   1            P2=(P2&0X1F)|0X80;
+ 133   1            P2&=0X1F;
+ 134   1        
+ 135   1            P0=0X00;
+ 136   1            P2=(P2&0X1F)|0XA0;
+ 137   1            P2&=0X1F;
+ 138   1      }//关闭led和蜂鸣器等外设
+ 139          
+ 140          void main(){
+ 141   1        init();
+ 142   1        Timer1_Init();
+ 143   1        EEPROM_Read(&vol_save,0,1);
+ 144   1        vol_disp=vol_save/10.0;
+ 145   1          while(1){
+ 146   2          key_proc();
+ 147   2            seg_proc();
+ 148   2            led_proc();
+ 149   2          }
+ 150   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    986    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     44    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      3    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
